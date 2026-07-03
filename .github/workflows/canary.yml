@@ -72,15 +72,15 @@ jobs:
             --name "$CONTAINER_NAME" \
             --network traefik_traefik \
             --label "traefik.enable=true" \
-            --label "traefik.http.routers.${CONTAINER_NAME}.rule=Host(\`${SUBDOMAIN}.ogdynex.com\`)" \
+            --label "traefik.http.routers.${CONTAINER_NAME}.rule=Host(\`${SUBDOMAIN}.canary.ogdynex.com\`)" \
             --label "traefik.http.routers.${CONTAINER_NAME}.entrypoints=web" \
             --label "traefik.http.services.${CONTAINER_NAME}.loadbalancer.server.port=3000" \
             "$IMAGE"
 
-          echo "Deployed: http://${SUBDOMAIN}.ogdynex.com"
+          echo "Deployed: https://${SUBDOMAIN}.canary.ogdynex.com"
           EOF
 
-          echo "url=http://${SUBDOMAIN}.ogdynex.com" >> "$GITHUB_OUTPUT"
+          echo "url=https://${SUBDOMAIN}.canary.ogdynex.com" >> "$GITHUB_OUTPUT"
 
       - name: Comment deployment URL on PR
         if: always() && steps.deploy.outcome == 'success'
