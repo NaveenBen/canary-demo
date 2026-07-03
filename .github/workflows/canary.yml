@@ -49,27 +49,22 @@ jobs:
           echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
-          
+           
           TIMESTAMP=$(date +%Y%m%d-%H%M)
           SUBDOMAIN="canary-${TIMESTAMP}"
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          
-          ssh $EC2_USER@$EC2_HOST << 'EOSCRIPT'
-          #!/bin/bash
-          set -e
-          
-          TIMESTAMP="$1"
-          SUBDOMAIN="$2"
-          IMAGE="$3"
-          REGISTRY_TOKEN="$4"
-          
-          # Log in to registry
-          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          
-          # Pull image
+          ACTOR="${{ github.actor }}"
+           
+          ssh -T $EC2_USER@$EC2_HOST bash -s "$TIMESTAMP" "$SUBDOMAIN" "$IMAGE" "$REGISTRY_TOKEN" "$ACTOR" << 'EOF'
+          TIMESTAMP=$1
+          SUBDOMAIN=$2
+          IMAGE=$3
+          REGISTRY_TOKEN=$4
+          ACTOR=$5
+           
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
           docker pull "$IMAGE"
-          
-          # Run container with Traefik labels
+           
           CONTAINER_NAME="canary-${TIMESTAMP}"
           docker run -d \
             --name "$CONTAINER_NAME" \
@@ -79,6 +74,6 @@ jobs:
             --label "traefik.http.routers.${CONTAINER_NAME}.entrypoints=web" \
             --label "traefik.http.services.${CONTAINER_NAME}.loadbalancer.server.port=3000" \
             "$IMAGE"
-          
+           
           echo "Deployed: http://${SUBDOMAIN}.ogdynex.com"
-          EOSCRIPT $TIMESTAMP $SUBDOMAIN $IMAGE "$REGISTRY_TOKEN"
+          EOF
