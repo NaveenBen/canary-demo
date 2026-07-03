@@ -14,6 +14,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +40,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Deploy to EC2
+        id: deploy
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
@@ -49,22 +51,22 @@ jobs:
           echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
-           
+
           TIMESTAMP=$(date +%Y%m%d-%H%M)
           SUBDOMAIN="canary-${TIMESTAMP}"
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
           ACTOR="${{ github.actor }}"
-           
+
           ssh -T $EC2_USER@$EC2_HOST bash -s "$TIMESTAMP" "$SUBDOMAIN" "$IMAGE" "$REGISTRY_TOKEN" "$ACTOR" << 'EOF'
           TIMESTAMP=$1
           SUBDOMAIN=$2
           IMAGE=$3
           REGISTRY_TOKEN=$4
           ACTOR=$5
-           
+
           echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
           docker pull "$IMAGE"
-           
+
           CONTAINER_NAME="canary-${TIMESTAMP}"
           docker run -d \
             --name "$CONTAINER_NAME" \
@@ -74,6 +76,20 @@ jobs:
             --label "traefik.http.routers.${CONTAINER_NAME}.entrypoints=web" \
             --label "traefik.http.services.${CONTAINER_NAME}.loadbalancer.server.port=3000" \
             "$IMAGE"
-           
+
           echo "Deployed: http://${SUBDOMAIN}.ogdynex.com"
           EOF
+
+          echo "url=http://${SUBDOMAIN}.ogdynex.com" >> "$GITHUB_OUTPUT"
+
+      - name: Comment deployment URL on PR
+        if: always() && steps.deploy.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" --jq '.[0].number')
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" --body "🚀 Deployed: ${{ steps.deploy.outputs.url }}"
+          else
+            echo "No associated PR found for ${{ github.sha }}, skipping comment"
+          fi
