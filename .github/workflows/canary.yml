@@ -68,7 +68,7 @@ jobs:
           CONTAINER_NAME="canary-${TIMESTAMP}"
           docker run -d \
             --name "$CONTAINER_NAME" \
-            --network traefik \
+            --network traefik_traefik \
             --label "traefik.enable=true" \
             --label "traefik.http.routers.${CONTAINER_NAME}.rule=Host(\`${SUBDOMAIN}.ogdynex.com\`)" \
             --label "traefik.http.routers.${CONTAINER_NAME}.entrypoints=web" \
